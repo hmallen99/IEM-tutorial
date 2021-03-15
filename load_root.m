@@ -6,6 +6,6 @@
 
 function root = load_root
 
-root = '/Users/Tommy/Dropbox/documents/ucsd/serences/Talks/BerlinWorkshop/tutorial/';%[pwd '/'];%'/usr/local/serenceslab/tommy/berlin_workshop/';
+root = 'C:/Users/henbo/honors-thesis/honors-thesis/IEM-tutorial';%[pwd '/'];%'/usr/local/serenceslab/tommy/berlin_workshop/';
 
 return

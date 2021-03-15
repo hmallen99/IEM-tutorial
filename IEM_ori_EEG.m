@@ -53,7 +53,9 @@ addpath([root 'mFiles/']);
 % timepoints to make things more easily computable on slower hardware (like
 % my laptop). Otherwise, the tutorial should work the same.
 
-load([root 'EEG_ori/s08_EEG_ori_mini.mat']);
+load([root 'EEG_ori/ak_epochs.mat']);
+trng = trng * 20;
+ts = linspace(0, 0.4, 16);
 
 %% generate orientation channels (orientation filters)
 %
