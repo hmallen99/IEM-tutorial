@@ -20,17 +20,19 @@ root = load_root();%'/usr/local/serenceslab/tommy/berlin_workshop/';
 addpath([root 'mFiles/']);
 
 subjlist = ["AK", "DI", "HHy", "HN", "JL", "KA", "MF", "NN", "SoM", "TE", "VA", "YMi"];
-shuffleLabels = true;
+shuffleLabels = false;
 
 
 % number of orientation channels
 n_ori_chans = 9;
+n_bins = 17;
 ts = linspace(0, 0.375, 16);
 chan_center = linspace(180/n_ori_chans,180,n_ori_chans);
 all_max_resp = zeros(n_ori_chans);
 all_mean_resp = zeros(n_ori_chans);
 all_shift_coeffs = zeros(length(ts), length(chan_center));
-sd_bins = zeros(15, n_ori_chans);
+sd_bins = zeros(n_bins, n_ori_chans);
+sd_count = zeros(1, n_bins);
 
 
 % main loop
@@ -49,15 +51,15 @@ for ff = 1:length(subjlist)
     filelocation = convertStringsToChars("MEG_ori/" + subjname + "_epochs.mat");
     fprintf(filelocation);
     load([root filelocation]);
-    trng = trng * 20;
+    %trng = trng * 20;
     ts = linspace(0, 0.375, 16);
     if shuffleLabels
         subjname = subjname + "_shuffle";
         trng = trng(randperm(500));
     end
-    diffs = zeros(500);
-    diffs(1:499) = trng(1:499) - trng(2:500);
-    diffs(500) = diffs(499);
+    trng_padded = [trng, trng(500)] / 20;
+    diffs = -diff(trng_padded);
+    diffs = diffs + 9;
 
     % generate orientation channels (orientation filters)
     % each orientation channel can be modeled as a "steerable filter" (see
@@ -124,7 +126,7 @@ for ff = 1:length(subjlist)
         n_trials_per_orientation(ii) = sum(thisidx);
         clear thisidx;
     end
-
+    
     trn_repnum(trn_repnum>min(n_trials_per_orientation))=NaN;
     trng_cv = trng(~isnan(trn_repnum));
     trn_cv = trn(~isnan(trn_repnum), :, :);
@@ -231,6 +233,7 @@ for ff = 1:length(subjlist)
     curr_shift_coeffs = squeeze(mean(chan_resp_cv_coeffs_shift,1)).';
     all_shift_coeffs = all_shift_coeffs + curr_shift_coeffs;
     imagesc(chan_center,ts, curr_shift_coeffs);
+    caxis([0.2, 0.3]);
     plot(targ_ori*[1 1],[ts(1) ts(end)],'k--');
     xlabel('Orientation channel (\circ)');
     ylabel('Time (s)');
@@ -238,7 +241,7 @@ for ff = 1:length(subjlist)
     axis ij tight;
 
     subplot(1,3,2);hold on;
-    tmean = mean(chan_resp_cv_coeffs_shift(:, :, 5:10), 3);
+    tmean = mean(chan_resp_cv_coeffs_shift(:, :, 8:12), 3);
     curr_mean_resp = mean(tmean,1);
     all_mean_resp = all_mean_resp + curr_mean_resp;
     plot(chan_center, curr_mean_resp);
@@ -250,11 +253,10 @@ for ff = 1:length(subjlist)
     
     subplot(1,3,3);
     average_resp = mean(trn, [1, 2]);
-    %plot(linspace(0, 0.375, 16), average_resp(:));
-    %xlabel('Time (s)');
-    %ylabel('Average MEG');
-    %title('Average MEG Response');
+    average_resp(1:6) = -inf;
+    average_resp(13:16) = -inf;
     [val, max_val] = max(average_resp(:));
+    disp(max_val);
     curr_max_resp = mean(chan_resp_cv_coeffs_shift(:, :, max_val), 1);
     all_max_resp = all_max_resp + curr_max_resp;
     
@@ -266,14 +268,15 @@ for ff = 1:length(subjlist)
     axis([0 200 0 0.4]);
     saveas(gcf, "../Figures/IEM/avg_response/" + subjname + "_tot_chan_response.png");
     for ii=1:length(diffs_cv)
-        bin_idx = int16(idivide(diffs_cv(ii), int16(12)));
-        sd_bins(bin_idx, :) = sd_bins(bin_idx, :) + curr_max_resp;
+        sd_bins(diffs_cv(ii), :) = sd_bins(diffs_cv(ii), :) + curr_max_resp;
+        sd_count(diffs_cv(ii)) = sd_count(diffs_cv(ii)) + 1;
     end
 end
 
 figure;
 subplot(1,3,1);
 imagesc(chan_center, ts, all_shift_coeffs / length(subjlist));
+caxis([0.2, 0.3]);
 
 subplot(1,3,2);
 plot(chan_center, all_mean_resp.' / length(subjlist));
@@ -291,6 +294,8 @@ end
 saveas(gcf, "../Figures/IEM/" + figname + "max_chan_response.png");
 
 figure;
+sd_count = max(sd_count, ones(1, n_bins));
+sd_bins = sd_bins./sd_count';
 imagesc(sd_bins);
 saveas(gcf, "../Figures/IEM/sd.png");
 
