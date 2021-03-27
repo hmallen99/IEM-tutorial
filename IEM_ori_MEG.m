@@ -51,6 +51,14 @@ for ff = 1:length(subjlist)
     filelocation = convertStringsToChars("MEG_ori/" + subjname + "_epochs.mat");
     fprintf(filelocation);
     load([root filelocation]);
+    
+    avg_meg_response = mean(trn, [1, 2]);
+    figure;
+    plot(avg_meg_response(:));
+    title("Average MEG Response");
+    xlabel("Timestep");
+    ylabel("Response");
+    saveas(gcf, "../Figures/IEM/meg_response/" + subjname + "_meg.png");
     %trng = trng * 20;
     ts = linspace(0, 0.375, 16);
     if shuffleLabels
@@ -233,7 +241,7 @@ for ff = 1:length(subjlist)
     curr_shift_coeffs = squeeze(mean(chan_resp_cv_coeffs_shift,1)).';
     all_shift_coeffs = all_shift_coeffs + curr_shift_coeffs;
     imagesc(chan_center,ts, curr_shift_coeffs);
-    caxis([0.2, 0.3]);
+    caxis([0.1, 0.4]);
     plot(targ_ori*[1 1],[ts(1) ts(end)],'k--');
     xlabel('Orientation channel (\circ)');
     ylabel('Time (s)');
@@ -254,10 +262,13 @@ for ff = 1:length(subjlist)
     subplot(1,3,3);
     average_resp = mean(trn, [1, 2]);
     average_resp(1:6) = -inf;
-    average_resp(13:16) = -inf;
+    average_resp(14:16) = -inf;
     [val, max_val] = max(average_resp(:));
     disp(max_val);
     curr_max_resp = mean(chan_resp_cv_coeffs_shift(:, :, max_val), 1);
+    %curr_max_resp = mean(chan_resp_cv_coeffs_shift(:, :, max_val-1:max_val), 3);
+    %curr_max_resp = mean(curr_max_resp, 1);
+    
     all_max_resp = all_max_resp + curr_max_resp;
     
     
@@ -296,6 +307,14 @@ saveas(gcf, "../Figures/IEM/" + figname + "max_chan_response.png");
 figure;
 sd_count = max(sd_count, ones(1, n_bins));
 sd_bins = sd_bins./sd_count';
-imagesc(sd_bins);
-saveas(gcf, "../Figures/IEM/sd.png");
+imagesc(sd_bins');
+caxis([0.2, 0.3]);
+title("Serial Dependence Channel Response");
+ylabel('Orientation channel');
+xlabel('Previous - Current Orientation');
+figname = "sd";
+if shuffleLabels
+    figname = figname + "_shuffle";
+end
+saveas(gcf, "../Figures/IEM/" + figname + ".png");
 
