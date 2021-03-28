@@ -53,10 +53,7 @@ addpath([root 'mFiles/']);
 % timepoints to make things more easily computable on slower hardware (like
 % my laptop). Otherwise, the tutorial should work the same.
 
-load([root 'EEG_ori/KA_epochs.mat']);
-trng = trng * 20;
-ts = linspace(0, 0.4, 16);
-
+load([root 'EEG_ori/s08_EEG_ori_mini.mat']);
 %% generate orientation channels (orientation filters)
 %
 % Just like IEM_ori_fMRI.m, we need to choose a number of orientation
@@ -242,7 +239,7 @@ for ii = 1:n_reps
 end
 toc
 
-trange = [0.0 .4];
+trange = [0.5 4];
 tidx = ts >= trange(1) & ts <= trange(2); % only look at this 3.5 s window
 
 %% plot data for cross-validated 
