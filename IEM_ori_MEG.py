@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.io import loadmat
 import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
 
 def load_data(subj):
     data = loadmat("MEG_ori/%s_epochs.mat" % subj)
@@ -105,9 +107,8 @@ class InvertedEncoder(object):
 
         return coeffs_shift, trng_cv, targ_ori
 
-def n_correct(coeffs, targ_ori, n_trials):
+def n_correct(tmean, targ_ori, n_trials):
     n = 0
-    tmean = coeffs.mean(axis=2)
     for i in range(n_trials):
         if np.argmax(tmean[i]) == targ_ori:
             n += 1
@@ -116,7 +117,20 @@ def n_correct(coeffs, targ_ori, n_trials):
 
 subjlist = ["AK", "DI", "HHy", "HN", "JL", "KA", "MF", "NN", "SoM", "TE", "VA", "YMi"]
 
-def run_all_subjects(n_ori_chans, permutation_test=False, n_p_tests=10):
+def make_pd_bar(avg_acc, permutations):
+    data_lst = []
+    data_lst.append(avg_acc)
+    data_lst.extend(permutations)
+
+    str_lst = []
+    str_lst.append("experimental")
+    str_lst.extend(["permutation" for _ in permutations])
+
+    d = {'accuracy': data_lst, 'Trial': str_lst}
+    df = pd.DataFrame(data=d)
+    return df
+
+def run_all_subjects(n_ori_chans, permutation_test=False, n_p_tests=100):
     IEM = InvertedEncoder(n_ori_chans)
     total_response = np.zeros(n_ori_chans)
     total_trials = 0
@@ -124,9 +138,9 @@ def run_all_subjects(n_ori_chans, permutation_test=False, n_p_tests=10):
     print("Running Experimental Test")
     exp_accuracy = 0
     for subj in subjlist:
-        coeffs, trng_cv, targ_ori = IEM.run_subject(subj, plot=True)
-        exp_accuracy += n_correct(coeffs, targ_ori, len(trng_cv))
+        coeffs, trng_cv, targ_ori = IEM.run_subject(subj, plot=True)    
         tmean = coeffs.mean(axis=2)
+        exp_accuracy += n_correct(tmean, targ_ori, len(trng_cv))
         total_response += np.sum(tmean, 0)
         total_trials += len(trng_cv)
 
@@ -145,43 +159,56 @@ def run_all_subjects(n_ori_chans, permutation_test=False, n_p_tests=10):
         extreme_pts = 0
         extreme_acc = 0
         perm_accuracy = 0
+        perm_list_x = []
+        perm_list_y = []
+        acc_lst = []
         for i in range(n_p_tests):
             print("Permutation %d" % (i + 1))
             total_response = np.zeros(n_ori_chans)
             total_trials = 0
             temp_perm_accuracy = 0
+            
             for subj in subjlist:
                 coeffs, trng_cv, targ_ori = IEM.run_subject(subj, permutation_test=True)
                 tmean = coeffs.mean(axis=2)
-                temp_perm_accuracy += n_correct(coeffs, targ_ori, len(trng_cv))
+                temp_perm_accuracy += n_correct(tmean, targ_ori, len(trng_cv))
                 total_response += np.sum(tmean, 0)
                 total_trials += len(trng_cv)
             temp_perm_accuracy /= total_trials
             print("accuracy: {:.3f}".format(temp_perm_accuracy))
             perm_accuracy += temp_perm_accuracy
-            if temp_perm_accuracy > exp_accuracy:
+            if temp_perm_accuracy >= exp_accuracy:
                 extreme_acc += 1
+            acc_lst.append(temp_perm_accuracy)
 
             perm_avg_response = total_response / total_trials
+            perm_list_x.extend(np.arange(n_ori_chans))
+            perm_list_y.extend(perm_avg_response)
             permutation_response += perm_avg_response
-            if perm_avg_response[targ_ori] > avg_response[targ_ori]:
+            if perm_avg_response[targ_ori] >= avg_response[targ_ori]:
                 extreme_pts += 1
         
+        acc_df = make_pd_bar(exp_accuracy, acc_lst)
         permutation_response = permutation_response / n_p_tests
         perm_accuracy /= n_p_tests
         print("accuracy: {:.3f}".format(perm_accuracy))
         plt.figure(figsize=(8, 8))
-        plt.bar([1, 2], [exp_accuracy, perm_accuracy], tick_label=["Experimental", "Permutation"])
+        #plt.bar([1, 2], [exp_accuracy, perm_accuracy], tick_label=["Experimental", "Permutation"])
+        sns.barplot(x='Trial', y='accuracy', data=acc_df, ci=95)
         plt.title("p-value: {:.3f}".format(extreme_acc / n_p_tests))
         plt.savefig("../Figures/IEM/python_files/accuracy.png")
         plt.clf()
 
         plt.figure(figsize=(4, 8))
-        plt.plot(permutation_response)
+        plt.plot(avg_response, label="Experimental Response")
+        sns.lineplot(perm_list_x, perm_list_y, label="Permutation")
+        plt.legend()
         plt.ylim(0, 0.3)
         plt.title("p-value: {:.3f}".format(extreme_pts / n_p_tests))
         plt.savefig("../Figures/IEM/python_files/perm_response.png")
         plt.clf()
+
+        
 
 def main():
     run_all_subjects(9, permutation_test=True)
