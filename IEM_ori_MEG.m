@@ -20,7 +20,7 @@ root = load_root();%'/usr/local/serenceslab/tommy/berlin_workshop/';
 addpath([root 'mFiles/']);
 
 subjlist = ["AK", "DI", "HHy", "HN", "JL", "KA", "MF", "NN", "SoM", "TE", "VA", "YMi"];
-shuffleLabels = false;
+shuffleLabels = true;
 
 
 % number of orientation channels
@@ -48,7 +48,7 @@ for ff = 1:length(subjlist)
     subjname = subjlist(ff);
     
     
-    filelocation = convertStringsToChars("MEG_ori/" + subjname + "_epochs.mat");
+    filelocation = convertStringsToChars("MEG_ori/" + subjname + "_epochs2.mat");
     fprintf(filelocation);
     load([root filelocation]);
     
@@ -249,7 +249,7 @@ for ff = 1:length(subjlist)
     axis ij tight;
 
     subplot(1,3,2);hold on;
-    tmean = mean(chan_resp_cv_coeffs_shift(:, :, 8:12), 3);
+    tmean = mean(chan_resp_cv_coeffs_shift(:, :, :), 3);
     curr_mean_resp = mean(tmean,1);
     all_mean_resp = all_mean_resp + curr_mean_resp;
     plot(chan_center, curr_mean_resp);
