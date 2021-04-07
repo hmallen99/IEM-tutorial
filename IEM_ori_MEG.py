@@ -39,7 +39,23 @@ def calc_relative_orientation(x):
     return x
 
 
+def load_percept_data(subj, n_classes=9):
+    _, trng = load_behavior(subj)
+    trng = trng.squeeze()
+    trn, _, ts = load_data(subj)
     
+    trng = trng[:500]
+    trn = trn[~np.isnan(trng)]
+    trng = trng[~np.isnan(trng)]
+    trng[np.abs(trng) > 90] = trng[np.abs(trng) > 90] - 180 * np.sign(trng[np.abs(trng) > 90])
+    offset = 180 / (n_classes * 2)
+    trng = (trng + 90 + offset) % 180
+    trng = np.floor(trng / (180 / n_classes))
+    trng = np.minimum(trng, n_classes-1)
+    trng = trng * (180 / n_classes)
+
+
+    return trn, trng, ts
 
 class InvertedEncoder(object):
     def __init__(self, n_ori_chans):
@@ -103,8 +119,8 @@ class InvertedEncoder(object):
 
         return chan_resp_cv_coeffs
 
-    def run_subject(self, subj, permutation_test=False, shuffle_data=False, plot=False):
-        trn, trng, ts = load_data(subj)
+    def run_subject(self, subj, permutation_test=False, shuffle_data=False, plot=False, percept_data=False):
+        trn, trng, ts = load_percept_data(subj, self.n_ori_chans) if percept_data else load_data(subj)
         basis_set = self.make_basis_set()
 
         if shuffle_data:
@@ -204,7 +220,7 @@ def make_pd_bar(exp_accs, perm_accs):
     df = pd.DataFrame(data=d)
     return df
 
-def run_all_subjects(n_ori_chans, n_p_tests=100, n_exp_tests=10, n_timesteps=16):
+def run_all_subjects(n_ori_chans, n_p_tests=100, n_exp_tests=10, n_timesteps=16, percept_data=False):
     IEM = InvertedEncoder(n_ori_chans)
     avg_response = np.zeros(n_ori_chans)
     total_trials = 0
@@ -222,7 +238,7 @@ def run_all_subjects(n_ori_chans, n_p_tests=100, n_exp_tests=10, n_timesteps=16)
         trial_response = np.zeros(n_ori_chans)
         trial_accuracy = np.zeros(n_timesteps)
         for subj in subjlist:
-            coeffs, trng_cv, targ_ori = IEM.run_subject(subj, shuffle_data=True)    
+            coeffs, trng_cv, targ_ori = IEM.run_subject(subj, shuffle_data=True, percept_data=percept_data)    
             tmean = coeffs.mean(axis=2)
             exp_accuracies[i] += n_correct(tmean, targ_ori, len(trng_cv))
             trial_accuracy += n_correct_tsteps(coeffs, targ_ori, len(trng_cv))
@@ -260,7 +276,7 @@ def run_all_subjects(n_ori_chans, n_p_tests=100, n_exp_tests=10, n_timesteps=16)
         perm_trial_acc = np.zeros(n_timesteps)
 
         for subj in subjlist:
-            coeffs, trng_cv, targ_ori = IEM.run_subject(subj, shuffle_data=True, permutation_test=True)
+            coeffs, trng_cv, targ_ori = IEM.run_subject(subj, shuffle_data=True, permutation_test=True, percept_data=percept_data)
             tmean = coeffs.mean(axis=2)
             temp_perm_accuracy += n_correct(tmean, targ_ori, len(trng_cv))
             perm_trial_acc += n_correct_tsteps(coeffs, targ_ori, len(trng_cv))
@@ -328,19 +344,20 @@ def run_all_subjects(n_ori_chans, n_p_tests=100, n_exp_tests=10, n_timesteps=16)
 
 
 
-def iem_sd_all(n_ori_chans, n_bins=15):
+def iem_sd_all(n_ori_chans, n_bins=15, percept_data=False):
     IEM = InvertedEncoder(n_ori_chans)
     bins = np.zeros((n_bins, n_ori_chans))
     bin_sizes = np.zeros(n_bins)
     for subj in subjlist:
-        temp_bins, temp_bin_sizes = IEM.run_sd_subject(subj, n_bins=n_bins)
+        temp_bins, temp_bin_sizes = IEM.run_sd_subject(subj, n_bins=n_bins, percept_data=percept_data)
         bins += temp_bins
         bin_sizes += temp_bin_sizes
     return
 
 def main():
-    run_all_subjects(9)
+    run_all_subjects(9, percept_data=False)
     #load_behavior("KA")
+    #load_percept_data("KA")
 
 if __name__ == "__main__":
     main()
