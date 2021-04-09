@@ -30,7 +30,7 @@ def load_data(subj):
 
 def load_behavior(subj):
     data = loadmat("Behavior/Sub%d_beh.mat" % new_beh_lst[subj])
-    return data['TgtOrs'], data['ResOrs']
+    return data['TgtOrs'].squeeze(), data['ResOrs'].squeeze()
 
 def calc_relative_orientation(x):
     if np.abs(x) > 90:
@@ -119,14 +119,19 @@ class InvertedEncoder(object):
 
         return chan_resp_cv_coeffs
 
-    def run_subject(self, subj, permutation_test=False, shuffle_data=False, plot=False, percept_data=False):
+    def run_subject(self, subj, permutation_test=False, shuffle_data=False, plot=False, percept_data=False, shuffle_idx=[], time_shift=0):
         trn, trng, ts = load_percept_data(subj, self.n_ori_chans) if percept_data else load_data(subj)
         basis_set = self.make_basis_set()
 
+        if time_shift == -1:
+            trng[1:len(trng)] = trng[:len(trng)-1]
+            trng[0] = np.random.choice(trng)
+
         if shuffle_data:
-            shuffle_idx = np.random.choice(len(trng), len(trng), replace=False)
+            if len(shuffle_idx) == 0:
+                shuffle_idx = np.random.choice(len(trng), len(trng), replace=False)
             trn = trn[shuffle_idx]
-            trng = trng[shuffle_idx]
+            trng = trng[shuffle_idx]    
 
         trng = trng % 180
         trng[trng == 0] = 180
@@ -164,6 +169,7 @@ class InvertedEncoder(object):
 
     def get_diffs(self, subj):
         tgt, _ = load_behavior(subj)
+        tgt = tgt[:500]
         diffs = [0]
         for i in range(1, len(tgt)):
             diffs.append(calc_relative_orientation(tgt[i - 1] - tgt[i]))
@@ -173,18 +179,17 @@ class InvertedEncoder(object):
     def run_sd_subject(self, subj, n_bins=30):
         _, trng, _ = load_data(subj)
         trn_repnum = self.make_trn_repnum(trng)
-        diffs = get_diffs(subj)
+        diffs = self.get_diffs(subj)
         diffs = diffs[~np.isnan(trn_repnum)]
-        coeffs_shift, trng_cv, targ_ori = self.run_subject(subj)
+        shuffle_idx = np.random.choice(len(trng), len(trng), replace=False)
+        coeffs_shift, trng_cv, targ_ori = self.run_subject(subj, shuffle_data=True, shuffle_idx=shuffle_idx)
         bins = np.zeros((n_bins, self.n_ori_chans))
         bin_sizes = np.zeros(n_bins)
-        diffs = np.maximum((diffs + 90) // (180 / n_bins), n_bins - 1)
+        diffs = np.minimum(np.floor((diffs + 90) / (180 / n_bins)), n_bins - 1).astype(int)
         for i in range(len(trng_cv)):
-            bins[diffs[i]] += coeffs_shift[i]
+            bins[diffs[i]] += coeffs_shift[i].mean(1)
             bin_sizes[diffs[i]] += 1
         
-        plt.imshow(bins)
-        plt.savefig("../Figures/IEM/python_files/%s_sd_response.png" % subj)
         return bins, bin_sizes
             
 
@@ -220,7 +225,7 @@ def make_pd_bar(exp_accs, perm_accs):
     df = pd.DataFrame(data=d)
     return df
 
-def run_all_subjects(n_ori_chans, n_p_tests=100, n_exp_tests=10, n_timesteps=16, percept_data=False):
+def run_all_subjects(n_ori_chans, n_p_tests=100, n_exp_tests=10, n_timesteps=16, percept_data=False, time_shift=0):
     IEM = InvertedEncoder(n_ori_chans)
     avg_response = np.zeros(n_ori_chans)
     total_trials = 0
@@ -238,7 +243,8 @@ def run_all_subjects(n_ori_chans, n_p_tests=100, n_exp_tests=10, n_timesteps=16,
         trial_response = np.zeros(n_ori_chans)
         trial_accuracy = np.zeros(n_timesteps)
         for subj in subjlist:
-            coeffs, trng_cv, targ_ori = IEM.run_subject(subj, shuffle_data=True, percept_data=percept_data)    
+            coeffs, trng_cv, targ_ori = IEM.run_subject(subj, shuffle_data=True, 
+                                                        percept_data=percept_data, time_shift=0)    
             tmean = coeffs.mean(axis=2)
             exp_accuracies[i] += n_correct(tmean, targ_ori, len(trng_cv))
             trial_accuracy += n_correct_tsteps(coeffs, targ_ori, len(trng_cv))
@@ -276,7 +282,8 @@ def run_all_subjects(n_ori_chans, n_p_tests=100, n_exp_tests=10, n_timesteps=16,
         perm_trial_acc = np.zeros(n_timesteps)
 
         for subj in subjlist:
-            coeffs, trng_cv, targ_ori = IEM.run_subject(subj, shuffle_data=True, permutation_test=True, percept_data=percept_data)
+            coeffs, trng_cv, targ_ori = IEM.run_subject(subj, shuffle_data=True, permutation_test=True, 
+                                                        percept_data=percept_data, time_shift=time_shift)
             tmean = coeffs.mean(axis=2)
             temp_perm_accuracy += n_correct(tmean, targ_ori, len(trng_cv))
             perm_trial_acc += n_correct_tsteps(coeffs, targ_ori, len(trng_cv))
@@ -344,20 +351,38 @@ def run_all_subjects(n_ori_chans, n_p_tests=100, n_exp_tests=10, n_timesteps=16,
 
 
 
-def iem_sd_all(n_ori_chans, n_bins=15, percept_data=False):
+def iem_sd_all(n_ori_chans, n_bins=15, percept_data=False, n_p_tests=100, n_exp_tests=50):
     IEM = InvertedEncoder(n_ori_chans)
-    bins = np.zeros((n_bins, n_ori_chans))
-    bin_sizes = np.zeros(n_bins)
-    for subj in subjlist:
-        temp_bins, temp_bin_sizes = IEM.run_sd_subject(subj, n_bins=n_bins, percept_data=percept_data)
-        bins += temp_bins
-        bin_sizes += temp_bin_sizes
+    
+   
+    bin_accuracies = np.zeros((n_exp_tests, n_bins, n_ori_chans))
+    for i in range(n_exp_tests):
+        print("Experimental Test: %i" % i)
+        bin_sizes = np.zeros(n_bins)
+        bins = np.zeros((n_bins, n_ori_chans))
+        for subj in subjlist:
+            temp_bins, temp_bin_sizes = IEM.run_sd_subject(subj, n_bins=n_bins)
+            bins += temp_bins
+            bin_sizes += temp_bin_sizes
+        
+        bin_accuracies[i] = bins / bin_sizes[:, None]
+
+    plt.figure(figsize=(8,8))
+    plt.imshow(bin_accuracies.mean(axis=0).T, aspect="equal")
+    plt.xticks(ticks=np.arange(-0.5, n_bins+0.5, 1), labels=np.linspace(-90, 90, n_bins+1).astype(int))
+    plt.title("Channel response binned by previous orientation")
+    plt.colorbar()
+    plt.xlabel("Previous - Current Orientation")
+    plt.ylabel("Channel response")
+    plt.savefig("../Figures/IEM/python_files/sd_all.png")
+    plt.clf()
     return
 
 def main():
-    run_all_subjects(9, percept_data=False)
+    #run_all_subjects(9, percept_data=False)
     #load_behavior("KA")
     #load_percept_data("KA")
+    iem_sd_all(9)
 
 if __name__ == "__main__":
     main()
