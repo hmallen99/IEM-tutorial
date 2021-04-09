@@ -25,7 +25,7 @@ new_beh_lst = {
 }
 
 def load_data(subj):
-    data = loadmat("MEG_ori/%s_epochs2.mat" % subj)
+    data = loadmat("MEG_ori/%s_epochs.mat" % subj)
     return data["trn"], data["trng"].squeeze(), data["ts"]
 
 def load_behavior(subj):
@@ -379,10 +379,10 @@ def iem_sd_all(n_ori_chans, n_bins=15, percept_data=False, n_p_tests=100, n_exp_
     return
 
 def main():
-    #run_all_subjects(9, percept_data=False)
+    run_all_subjects(9, percept_data=False)
     #load_behavior("KA")
     #load_percept_data("KA")
-    iem_sd_all(9)
+    #iem_sd_all(9)
 
 if __name__ == "__main__":
     main()
