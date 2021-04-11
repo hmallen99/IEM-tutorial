@@ -25,7 +25,7 @@ new_beh_lst = {
 }
 
 def load_data(subj):
-    data = loadmat("MEG_ori/%s_epochs.mat" % subj)
+    data = loadmat("MEG_ori/%s_epochs2.mat" % subj)
     return data["trn"], data["trng"].squeeze(), data["ts"]
 
 def load_behavior(subj):
@@ -237,6 +237,7 @@ def run_all_subjects(n_ori_chans, n_p_tests=100, n_exp_tests=10, n_timesteps=16,
     exp_accuracies = np.zeros(n_exp_tests)
     exp_t_accs_x = []
     exp_t_accs_y = []
+    exp_ch_responses = np.zeros((n_exp_tests, n_ori_chans))
     for i in range(n_exp_tests):
         print("Trial %d" % (i + 1))
         test_trials = 0
@@ -254,11 +255,12 @@ def run_all_subjects(n_ori_chans, n_p_tests=100, n_exp_tests=10, n_timesteps=16,
         exp_accuracies[i] /= test_trials
 
         trial_accuracy = trial_accuracy / test_trials
-        exp_t_accs_x.extend(np.arange(n_timesteps))
+        exp_t_accs_x.extend(np.linspace(0, 0.375, n_timesteps))
         exp_t_accs_y.extend(trial_accuracy)
 
         avg_response += trial_response
         trial_response = trial_response / test_trials
+        exp_ch_responses[i] += trial_response
         exp_list_x.extend(np.arange(n_ori_chans))
         exp_list_y.extend(trial_response)
         print("Test Accuracy: {:.3f}".format(exp_accuracies[i]))
@@ -274,6 +276,7 @@ def run_all_subjects(n_ori_chans, n_p_tests=100, n_exp_tests=10, n_timesteps=16,
     perm_list_x = []
     perm_list_y = []
     perm_accuracies = []
+    extreme_ch_resps = np.zeros(n_ori_chans)
     for i in range(n_p_tests):
         print("Permutation %d" % (i + 1))
         total_response = np.zeros(n_ori_chans)
@@ -298,15 +301,20 @@ def run_all_subjects(n_ori_chans, n_p_tests=100, n_exp_tests=10, n_timesteps=16,
         perm_accuracies.append(temp_perm_accuracy)
 
         perm_trial_acc = perm_trial_acc / total_trials
-        perm_t_accs_x.extend(np.arange(n_timesteps))
+        perm_t_accs_x.extend(np.linspace(0, 0.375, n_timesteps))
         perm_t_accs_y.extend(perm_trial_acc)
 
         perm_avg_response = total_response / total_trials
+        for i in range(n_ori_chans):
+            for j in range(n_exp_tests):
+                if perm_avg_response[i] >= exp_ch_responses[j][i]:
+                    extreme_ch_resps[i] += 1
+
         perm_list_x.extend(np.arange(n_ori_chans))
         perm_list_y.extend(perm_avg_response)
         permutation_response += perm_avg_response
 
-    
+    ch_resp_p_values = extreme_ch_resps / (n_exp_tests * n_p_tests)
     acc_df = make_pd_bar(exp_accuracies, perm_accuracies)
     permutation_response = permutation_response / n_p_tests
     perm_accuracy /= n_p_tests
@@ -331,11 +339,14 @@ def run_all_subjects(n_ori_chans, n_p_tests=100, n_exp_tests=10, n_timesteps=16,
     plt.figure(figsize=(4, 8))
     sns.lineplot(exp_list_x, exp_list_y, label="Experimental Response", ci="sd")
     sns.lineplot(perm_list_x, perm_list_y, label="Permutation", ci="sd")
+    
+    plt.ylim(0.1, 0.35)
+    for i in range(n_ori_chans):
+        plt.text(i-0.5, avg_response[i]+0.03, ch_resp_p_values[i], color="red")
     plt.legend()
-    plt.ylim(0, 0.3)
-    #plt.title("p-value: {:.3f}".format(extreme_pts / n_p_tests))
+    plt.xticks(ticks=np.arange(n_ori_chans), labels=np.arange(0, 180, 180 / n_ori_chans).astype(int))
     plt.title("Mean Channel Response of Experiment vs. Permutation groups")
-    plt.xlabel("Orientation Channel")
+    plt.xlabel("Orientation Channel (Degrees)")
     plt.ylabel("Channel Response")
     plt.savefig("../Figures/IEM/python_files/perm_response.png")
     plt.clf()
@@ -370,6 +381,7 @@ def iem_sd_all(n_ori_chans, n_bins=15, percept_data=False, n_p_tests=100, n_exp_
     plt.figure(figsize=(8,8))
     plt.imshow(bin_accuracies.mean(axis=0).T, aspect="equal")
     plt.xticks(ticks=np.arange(-0.5, n_bins+0.5, 1), labels=np.linspace(-90, 90, n_bins+1).astype(int))
+    plt.yticks(ticks=np.arange(-0.5, n_ori_chans+0.5, 1), labels=np.arange(0, 180, 180 / n_ori_chans).astype(int))
     plt.title("Channel response binned by previous orientation")
     plt.colorbar()
     plt.xlabel("Previous - Current Orientation")
