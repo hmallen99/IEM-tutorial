@@ -364,9 +364,9 @@ def run_all_subjects(n_ori_chans, n_p_tests=100, n_exp_tests=10, n_timesteps=16,
 
 
 
-def iem_sd_all(n_ori_chans, n_bins=15, percept_data=False, n_p_tests=100, n_exp_tests=50, n_timesteps=16):
+def iem_sd_all(n_ori_chans, n_bins=15, percept_data=False, n_p_tests=100, n_exp_tests=25, n_timesteps=16):
     IEM = InvertedEncoder(n_ori_chans)
-    
+    avg_response = np.zeros((n_ori_chans, n_timesteps))
    
     bin_accuracies = np.zeros((n_exp_tests, n_bins, n_ori_chans, n_timesteps))
     for i in range(n_exp_tests):
@@ -377,9 +377,14 @@ def iem_sd_all(n_ori_chans, n_bins=15, percept_data=False, n_p_tests=100, n_exp_
             temp_bins, temp_bin_sizes = IEM.run_sd_subject(subj, n_bins=n_bins)
             bins += temp_bins
             bin_sizes += temp_bin_sizes
+            
+        
         
         for j in range(n_timesteps):
             bin_accuracies[i, :, :, j] = bins[:, :, j] / bin_sizes[:, None]
+            avg_response[:, j] += (np.sum(bins[:, :, j], axis=0) / np.sum(bin_sizes))
+    
+    avg_response /= (n_exp_tests)
 
     perm_bin_accuracies = np.zeros((n_p_tests, n_bins, n_ori_chans, n_timesteps))
     for i in range(n_p_tests):
@@ -394,10 +399,15 @@ def iem_sd_all(n_ori_chans, n_bins=15, percept_data=False, n_p_tests=100, n_exp_
         for j in range(n_timesteps):
             perm_bin_accuracies[i, :, :, j] = bins[:, :, j] / bin_sizes[:, None]
         
+
+
     for j in range(n_timesteps):
         figure = plt.figure(figsize=(8,10))
+        timestep_bins = bin_accuracies[:, :, :, j].mean(axis=0) - avg_response[:, j]
+        perm_timestep_bins = perm_bin_accuracies[:, :, :, j].mean(axis=0) - avg_response[:, j]
+
         ax0 = figure.add_subplot(2, 1, 1)
-        im0 = ax0.imshow(bin_accuracies[:, :, :, j].mean(axis=0).T, aspect="equal")
+        im0 = ax0.imshow(timestep_bins.T, aspect="equal", vmin=-0.1, vmax=0.1)
         ax0.set_xlabel("Relative Previous Orientation")
         figure.colorbar(im0, ax=ax0)
         plt.xticks(ticks=np.arange(-0.5, n_bins+0.5, 1), labels=np.linspace(-90, 90, n_bins+1).astype(int))
@@ -406,7 +416,7 @@ def iem_sd_all(n_ori_chans, n_bins=15, percept_data=False, n_p_tests=100, n_exp_
         plt.title("Channel response binned by previous orientation, t=%d" % j)
 
         ax1 = figure.add_subplot(2, 1, 2)
-        im1 = ax1.imshow(perm_bin_accuracies[:, :, :, j].mean(axis=0).T, aspect="equal")
+        im1 = ax1.imshow(perm_timestep_bins.T, aspect="equal", vmin=-0.1, vmax=0.1)
         ax1.set_xlabel("Relative Previous Orientation")
         figure.colorbar(im1, ax=ax1)
 
