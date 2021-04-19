@@ -3,3 +3,5 @@ Introductory example code for implementing inverted encoding model(s), as descri
 From this directory, you can run any of the IEM_*.m scripts after changing "load_root.m" to point to the directory in which each IEM*.m script lives.
 
 We cannot distribute the full EEG datafile through github - please download the file "s08_EEG_ori_mini.mat" here: https://www.dropbox.com/s/95fr5kvvj960x4c/s08_EEG_ori_mini.mat?dl=0 and save it into your EEG_ori/ direcotry.
+
+Code adapted to Python by Henry Allen
